@@ -1,0 +1,82 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Install Backend Dependencies') {
+            steps {
+                sh '''
+                    test -d /home/ubuntu/terraformassign/backend || {
+                        echo "Deployment directory does not exist: /home/ubuntu/terraformassign/backend"
+                        exit 1
+                    }
+                    sudo -u ubuntu test -x /home/ubuntu/terraformassign/backend/venv/bin/python || {
+                        echo "Backend virtualenv does not exist: /home/ubuntu/terraformassign/backend/venv"
+                        exit 1
+                    }
+                    sudo -u ubuntu test -w /home/ubuntu/terraformassign/backend/venv || {
+                        echo "ubuntu cannot update the backend virtualenv: /home/ubuntu/terraformassign/backend/venv"
+                        exit 1
+                    }
+                    sudo -u ubuntu /home/ubuntu/terraformassign/backend/venv/bin/python \
+                        -m pip install -r backend/requirement.txt
+                '''
+            }
+        }
+
+        stage('Validate Backend') {
+            steps {
+                sh '''
+                    /home/ubuntu/terraformassign/backend/venv/bin/python \
+                        -m compileall -q backend
+                    cd backend
+                    /home/ubuntu/terraformassign/backend/venv/bin/python -c "import app"
+                '''
+            }
+        }
+
+        stage('Deploy Backend') {
+            steps {
+                sh '''
+                    test -d /home/ubuntu/terraformassign/backend || {
+                        echo "Deployment directory does not exist: /home/ubuntu/terraformassign/backend"
+                        exit 1
+                    }
+                    sudo -u ubuntu test -w /home/ubuntu/terraformassign/backend || {
+                        echo "ubuntu cannot write to deployment directory: /home/ubuntu/terraformassign/backend"
+                        exit 1
+                    }
+                    sudo -u ubuntu rsync -a \
+                        --exclude='.env' \
+                        --exclude='venv/' \
+                        --exclude='__pycache__/' \
+                        backend/ /home/ubuntu/terraformassign/backend/
+                    sudo systemctl restart backend
+                '''
+            }
+        }
+
+        stage('Health Check') {
+            steps {
+                sh '''
+                    sleep 3
+                    curl --fail --silent --show-error http://127.0.0.1:5000/
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Backend deployed successfully.'
+        }
+        failure {
+            echo 'Flask backend deployment failed.'
+        }
+    }
+}

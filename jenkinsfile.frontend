@@ -1,0 +1,68 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Install Frontend Dependencies') {
+            steps {
+                sh 'npm ci --prefix frontend'
+            }
+        }
+
+        stage('Validate Frontend') {
+            steps {
+                sh 'npm test --prefix frontend'
+            }
+        }
+
+        stage('Deploy Frontend') {
+            steps {
+                sh '''
+                    test -d /home/ubuntu/terraformassign/frontend || {
+                        echo "Deployment directory does not exist: /home/ubuntu/terraformassign/frontend"
+                        exit 1
+                    }
+                    sudo -u ubuntu test -w /home/ubuntu/terraformassign/frontend || {
+                        echo "ubuntu cannot write to deployment directory: /home/ubuntu/terraformassign/frontend"
+                        exit 1
+                    }
+                    sudo -u ubuntu rsync -a \
+                        --exclude='.env' \
+                        --exclude='node_modules/' \
+                        frontend/ /home/ubuntu/terraformassign/frontend/
+                    sudo -u ubuntu npm ci --prefix /home/ubuntu/terraformassign/frontend
+                    if sudo -u ubuntu pm2 describe frontend >/dev/null 2>&1; then
+                        sudo -u ubuntu pm2 delete frontend
+                    fi
+                    sudo -u ubuntu pm2 start npm \
+                        --name frontend \
+                        --cwd /home/ubuntu/terraformassign/frontend \
+                        -- start
+                '''
+            }
+        }
+
+        stage('Health Check') {
+            steps {
+                sh '''
+                    sleep 3
+                    curl --fail --silent --show-error http://127.0.0.1:3000/
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Express frontend deployed successfully.'
+        }
+        failure {
+            echo 'Express frontend deployment failed.'
+        }
+    }
+}
