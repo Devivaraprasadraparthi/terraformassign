@@ -6,28 +6,11 @@ pipeline {
         PORT    = '3000'
     }
 
-
-
-    stage('Install Dependencies') {
-            steps {
-                sh '''
-                    set -e
-
-                    echo "Checking Node and NPM versions..."
-                    sudo -u ubuntu node --version
-                    sudo -u ubuntu npm --version
-
-                    echo "Installing production dependencies..."
-                    sudo -u ubuntu NODE_OPTIONS="--max-old-space-size=512" npm install \
-                        --prefix "$APP_DIR" \
-                        --omit=dev \
-                        --no-audit \
-                        --no-fund
-                '''
-            }
+    stages {
+        stage('Checkout') {
+            steps { checkout scm }
         }
 
-    stages {
         stage('Deploy Code') {
             steps {
                 sh '''
@@ -46,6 +29,25 @@ pipeline {
             }
         }
 
+        stage('Install Dependencies') {
+            steps {
+                sh '''
+                    set -e
+
+                    echo "Checking Node and NPM versions..."
+                    sudo -u ubuntu node --version
+                    sudo -u ubuntu npm --version
+
+                    echo "Installing production dependencies..."
+                    sudo -u ubuntu NODE_OPTIONS="--max-old-space-size=512" npm install \
+                        --prefix "$APP_DIR" \
+                        --omit=dev \
+                        --no-audit \
+                        --no-fund
+                '''
+            }
+        }
+
         stage('Restart with PM2') {
             steps {
                 sh '''
@@ -55,7 +57,7 @@ pipeline {
                         # Ensure PM2 and Node paths are discovered
                         export PATH="/home/ubuntu/.nvm/versions/node/$(ls /home/ubuntu/.nvm/versions/node 2>/dev/null | tail -n 1)/bin:/usr/local/bin:/usr/bin:$PATH"
 
-                        cd "'"$APP_DIR"'"
+                        cd /home/ubuntu/terraformassign/frontend
 
                         if pm2 describe frontend >/dev/null 2>&1; then
                             echo "Frontend process found. Reloading..."

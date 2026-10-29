@@ -11,25 +11,28 @@ pipeline {
             steps { checkout scm }
         }
 
-         stage('Install Dependencies') {
-    steps {
-        sh '''
-            sudo -u ubuntu bash -c "
-                cd /home/ubuntu/terraformassign/backend
-                source venv/bin/activate
-                pip install --no-cache-dir --prefer-binary -r requirements.txt
-            "
-        '''
-    }
-}
-
         stage('Deploy Code') {
             steps {
                 sh '''
-                    test -d $APP_DIR || { echo "Missing $APP_DIR"; exit 1; }
+                    set -e
+                    test -d "$APP_DIR" || { echo "Missing $APP_DIR"; exit 1; }
                     sudo -u ubuntu rsync -a \
                         --exclude='.env' --exclude='venv/' --exclude='__pycache__/' \
-                        backend/ $APP_DIR/
+                        backend/ "$APP_DIR/"
+                '''
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                sh '''
+                    set -e
+                    sudo -u ubuntu bash -c '
+                        cd /home/ubuntu/terraformassign/backend
+                        test -x venv/bin/python || python3 -m venv venv
+                        source venv/bin/activate
+                        pip install --no-cache-dir --prefer-binary -r requirement.txt
+                    '
                 '''
             }
         }
