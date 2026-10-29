@@ -15,10 +15,17 @@ pipeline {
             steps {
                 sh '''
                     set -e
-                    test -d "$APP_DIR" || { echo "Missing $APP_DIR"; exit 1; }
-                    sudo -u ubuntu rsync -a \
-                        --exclude='.env' --exclude='venv/' --exclude='__pycache__/' \
-                        backend/ "$APP_DIR/"
+                    echo "Verifying target deployment directory..."
+                    sudo -u ubuntu test -d "$APP_DIR" || { echo "ERROR: Missing $APP_DIR"; exit 1; }
+
+                    echo "Syncing backend repository files to $APP_DIR..."
+                    sudo -u ubuntu rsync -av --delete \
+                    --exclude='.env' \
+                    --exclude='venv/' \
+                    --exclude='__pycache__/' \
+                    --exclude='*.pyc' \
+                    --exclude='.git/' \
+                    backend/ "$APP_DIR/"
                 '''
             }
         }

@@ -19,7 +19,7 @@ pipeline {
                     echo "target deployment directory: $APP_DIR"
                     if [ ! -d "$APP_DIR" ]; then
                          echo "Directory $APP_DIR does not exist. Current folders in /home/ubuntu/terraformassign/:"
-                         ls -la /home/ubuntu/terraformassign/
+                         sudo -u ubuntu ls -la /home/ubuntu/terraformassign/
                          exit 1
                     fi
 
