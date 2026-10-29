@@ -12,12 +12,16 @@ pipeline {
         }
 
          stage('Install Dependencies') {
-            steps {
-                sh '''
-                    sudo -u ubuntu $APP_DIR/venv/bin/pip install -r $APP_DIR/requirements.txt
-                '''
-            }
-        }
+    steps {
+        sh '''
+            sudo -u ubuntu bash -c "
+                cd /home/ubuntu/terraformassign/backend
+                source venv/bin/activate
+                pip install --no-cache-dir --prefer-binary -r requirements.txt
+            "
+        '''
+    }
+}
 
         stage('Deploy Code') {
             steps {

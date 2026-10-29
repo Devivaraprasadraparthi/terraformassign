@@ -1,44 +1,68 @@
 pipeline {
     agent any
-    triggers { githubPush() }
 
     environment {
         APP_DIR = '/home/ubuntu/terraformassign/frontend'
+        PORT    = '3000'
     }
 
     stages {
-        stage('Checkout') {
-            steps { checkout scm }
-        }
-
-        stage('Install Dependencies') {
-            steps {
-                sh 'sudo -u ubuntu npm install --prefix $APP_DIR'
-            }
-        }
-
         stage('Deploy Code') {
             steps {
                 sh '''
-                    test -d $APP_DIR || { echo "Missing $APP_DIR"; exit 1; }
-                    sudo -u ubuntu rsync -a \
-                        --exclude='.env' --exclude='node_modules/' \
-                        frontend/ $APP_DIR/
+                    set -e
+
+                    echo "Verifying target deployment directory..."
+                    test -d "$APP_DIR" || { echo "ERROR: Target directory $APP_DIR does not exist."; exit 1; }
+
+                    echo "Syncing frontend repository files to $APP_DIR..."
+                    sudo -u ubuntu rsync -av --delete \
+                        --exclude='.env' \
+                        --exclude='node_modules/' \
+                        --exclude='.git/' \
+                        frontend/ "$APP_DIR/"
                 '''
             }
         }
 
+        stage('Install Dependencies') {
+            steps {
+                sh '''
+                    set -e
+
+                    echo "Checking Node and NPM versions..."
+                    sudo -u ubuntu node --version
+                    sudo -u ubuntu npm --version
+
+                    echo "Installing production dependencies..."
+                    sudo -u ubuntu NODE_OPTIONS="--max-old-space-size=512" npm install \
+                        --prefix "$APP_DIR" \
+                        --omit=dev \
+                        --no-audit \
+                        --no-fund
+                '''
+            }
+        }
 
         stage('Restart with PM2') {
             steps {
                 sh '''
+                    set -e
+
                     sudo -u ubuntu env HOME=/home/ubuntu PM2_HOME=/home/ubuntu/.pm2 bash -c '
-                        cd /home/ubuntu/terraformassign/frontend
+                        # Ensure PM2 and Node paths are discovered
+                        export PATH="/home/ubuntu/.nvm/versions/node/$(ls /home/ubuntu/.nvm/versions/node 2>/dev/null | tail -n 1)/bin:/usr/local/bin:/usr/bin:$PATH"
+
+                        cd "'"$APP_DIR"'"
+
                         if pm2 describe frontend >/dev/null 2>&1; then
+                            echo "Frontend process found. Reloading..."
                             pm2 restart frontend --update-env
                         else
+                            echo "Starting frontend service with PM2..."
                             pm2 start npm --name frontend -- start
                         fi
+
                         pm2 save
                     '
                 '''
@@ -49,7 +73,7 @@ pipeline {
             steps {
                 sh '''
                     for i in $(seq 1 15); do
-                        curl --fail --silent -o /dev/null http://127.0.0.1:3000/ && exit 0
+                        curl --fail --silent -o /dev/null http://127.0.0.1:${PORT}/ && exit 0
                         sleep 2
                     done
                     echo "Frontend health check failed"; exit 1
