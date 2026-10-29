@@ -6,6 +6,27 @@ pipeline {
         PORT    = '3000'
     }
 
+
+
+    stage('Install Dependencies') {
+            steps {
+                sh '''
+                    set -e
+
+                    echo "Checking Node and NPM versions..."
+                    sudo -u ubuntu node --version
+                    sudo -u ubuntu npm --version
+
+                    echo "Installing production dependencies..."
+                    sudo -u ubuntu NODE_OPTIONS="--max-old-space-size=512" npm install \
+                        --prefix "$APP_DIR" \
+                        --omit=dev \
+                        --no-audit \
+                        --no-fund
+                '''
+            }
+        }
+
     stages {
         stage('Deploy Code') {
             steps {
@@ -21,25 +42,6 @@ pipeline {
                         --exclude='node_modules/' \
                         --exclude='.git/' \
                         frontend/ "$APP_DIR/"
-                '''
-            }
-        }
-
-        stage('Install Dependencies') {
-            steps {
-                sh '''
-                    set -e
-
-                    echo "Checking Node and NPM versions..."
-                    sudo -u ubuntu node --version
-                    sudo -u ubuntu npm --version
-
-                    echo "Installing production dependencies..."
-                    sudo -u ubuntu NODE_OPTIONS="--max-old-space-size=512" npm install \
-                        --prefix "$APP_DIR" \
-                        --omit=dev \
-                        --no-audit \
-                        --no-fund
                 '''
             }
         }
