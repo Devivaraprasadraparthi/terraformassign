@@ -11,6 +11,14 @@ pipeline {
             steps { checkout scm }
         }
 
+         stage('Install Dependencies') {
+            steps {
+                sh '''
+                    sudo -u ubuntu $APP_DIR/venv/bin/pip install -r $APP_DIR/requirements.txt
+                '''
+            }
+        }
+
         stage('Deploy Code') {
             steps {
                 sh '''
@@ -18,14 +26,6 @@ pipeline {
                     sudo -u ubuntu rsync -a \
                         --exclude='.env' --exclude='venv/' --exclude='__pycache__/' \
                         backend/ $APP_DIR/
-                '''
-            }
-        }
-
-        stage('Install Dependencies') {
-            steps {
-                sh '''
-                    sudo -u ubuntu $APP_DIR/venv/bin/pip install -r $APP_DIR/requirements.txt
                 '''
             }
         }

@@ -11,6 +11,12 @@ pipeline {
             steps { checkout scm }
         }
 
+        stage('Install Dependencies') {
+            steps {
+                sh 'sudo -u ubuntu npm install --prefix $APP_DIR'
+            }
+        }
+
         stage('Deploy Code') {
             steps {
                 sh '''
@@ -22,11 +28,6 @@ pipeline {
             }
         }
 
-        stage('Install Dependencies') {
-            steps {
-                sh 'sudo -u ubuntu npm install --prefix $APP_DIR'
-            }
-        }
 
         stage('Restart with PM2') {
             steps {
