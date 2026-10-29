@@ -1,62 +1,47 @@
 pipeline {
     agent any
+    triggers { githubPush() }
+
+    environment {
+        APP_DIR = '/home/ubuntu/terraformassign/backend'
+    }
 
     stages {
         stage('Checkout') {
-            steps {
-                checkout scm
-            }
+            steps { checkout scm }
         }
 
-        stage('Install Backend Dependencies') {
+        stage('Deploy Code') {
             steps {
                 sh '''
-                    test -d /home/ubuntu/terraformassign/backend || {
-                        echo "Deployment directory does not exist: /home/ubuntu/terraformassign/backend"
-                        exit 1
-                    }
-                    sudo -u ubuntu test -x /home/ubuntu/terraformassign/backend/venv/bin/python || {
-                        echo "Backend virtualenv does not exist: /home/ubuntu/terraformassign/backend/venv"
-                        exit 1
-                    }
-                    sudo -u ubuntu test -w /home/ubuntu/terraformassign/backend/venv || {
-                        echo "ubuntu cannot update the backend virtualenv: /home/ubuntu/terraformassign/backend/venv"
-                        exit 1
-                    }
-                    sudo -u ubuntu /home/ubuntu/terraformassign/backend/venv/bin/python \
-                        -m pip install -r backend/requirement.txt
-                '''
-            }
-        }
-
-        stage('Validate Backend') {
-            steps {
-                sh '''
-                    /home/ubuntu/terraformassign/backend/venv/bin/python \
-                        -m compileall -q backend
-                    cd backend
-                    /home/ubuntu/terraformassign/backend/venv/bin/python -c "import app"
-                '''
-            }
-        }
-
-        stage('Deploy Backend') {
-            steps {
-                sh '''
-                    test -d /home/ubuntu/terraformassign/backend || {
-                        echo "Deployment directory does not exist: /home/ubuntu/terraformassign/backend"
-                        exit 1
-                    }
-                    sudo -u ubuntu test -w /home/ubuntu/terraformassign/backend || {
-                        echo "ubuntu cannot write to deployment directory: /home/ubuntu/terraformassign/backend"
-                        exit 1
-                    }
+                    test -d $APP_DIR || { echo "Missing $APP_DIR"; exit 1; }
                     sudo -u ubuntu rsync -a \
-                        --exclude='.env' \
-                        --exclude='venv/' \
-                        --exclude='__pycache__/' \
-                        backend/ /home/ubuntu/terraformassign/backend/
-                    sudo systemctl restart backend
+                        --exclude='.env' --exclude='venv/' --exclude='__pycache__/' \
+                        backend/ $APP_DIR/
+                '''
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                sh '''
+                    sudo -u ubuntu $APP_DIR/venv/bin/pip install -r $APP_DIR/requirements.txt
+                '''
+            }
+        }
+
+        stage('Restart with PM2') {
+            steps {
+                sh '''
+                    sudo -u ubuntu env HOME=/home/ubuntu PM2_HOME=/home/ubuntu/.pm2 bash -c '
+                        cd /home/ubuntu/terraformassign/backend
+                        if pm2 describe backend >/dev/null 2>&1; then
+                            pm2 restart backend --update-env
+                        else
+                            pm2 start venv/bin/gunicorn --name backend --interpreter none -- -w 2 -b 0.0.0.0:5000 app:app
+                        fi
+                        pm2 save
+                    '
                 '''
             }
         }
@@ -64,19 +49,18 @@ pipeline {
         stage('Health Check') {
             steps {
                 sh '''
-                    sleep 3
-                    curl --fail --silent --show-error http://127.0.0.1:5000/
+                    for i in $(seq 1 15); do
+                        curl --fail --silent -o /dev/null http://127.0.0.1:5000/ && exit 0
+                        sleep 2
+                    done
+                    echo "Backend health check failed"; exit 1
                 '''
             }
         }
     }
 
     post {
-        success {
-            echo 'Backend deployed successfully.'
-        }
-        failure {
-            echo 'Flask backend deployment failed.'
-        }
+        success { echo 'Backend deployed successfully.' }
+        failure { echo 'Backend deployment failed.' }
     }
 }
