@@ -18,7 +18,7 @@ pipeline {
 
                     echo "Verifying target deployment directory..."
                     sudo -u ubuntu test -d "$APP_DIR" || { echo "ERROR: Missing $APP_DIR"; exit 1; }
-                    
+
                     echo "Syncing frontend repository files to $APP_DIR..."
                     sudo -u ubuntu rsync -av --delete \
                         --exclude='.env' \
@@ -39,7 +39,7 @@ pipeline {
                     sudo -u ubuntu npm --version
 
                     echo "Installing production dependencies..."
-                    sudo -u ubuntu NODE_OPTIONS="--max-old-space-size=512" npm install \
+                    sudo -u ubuntu NODE_OPTIONS="--max-old-space-size=512" npm start \
                         --prefix "$APP_DIR" \
                         --omit=dev \
                         --no-audit \
