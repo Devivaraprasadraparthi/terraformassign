@@ -16,13 +16,9 @@ pipeline {
                 sh '''
                     set -e
 
-                    echo "target deployment directory: $APP_DIR"
-                    if [ ! -d "$APP_DIR" ]; then
-                         echo "Directory $APP_DIR does not exist. Current folders in /home/ubuntu/terraformassign/:"
-                         sudo -u ubuntu ls -la /home/ubuntu/terraformassign/
-                         exit 1
-                    fi
-
+                    echo "Verifying target deployment directory..."
+                    sudo -u ubuntu test -d "$APP_DIR" || { echo "ERROR: Missing $APP_DIR"; exit 1; }
+                    
                     echo "Syncing frontend repository files to $APP_DIR..."
                     sudo -u ubuntu rsync -av --delete \
                         --exclude='.env' \
